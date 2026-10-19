@@ -1,0 +1,21 @@
+{
+  "name": "date-night-picker",
+  "version": "0.0.0",
+  "description": "Pick a random date night idea that fits the time and money you have.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "snapshot": "node scripts/snapshot-activities.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^8.1.0",
+    "vitest": "^5.0.3"
+  }
+}

@@ -1,0 +1,14 @@
+[
+  { "time": "3", "budget": "40", "category": "Food", "idea": "Cook a new cuisine together" },
+  { "time": "1", "budget": "0", "category": "Outdoors", "idea": "Sunset walk at the park" },
+  { "time": "2", "budget": "25", "category": "Food", "idea": "Dessert crawl: three bakeries, one bite each" },
+  { "time": "0", "budget": "0", "category": "At Home", "idea": "Slow dance in the kitchen to our wedding playlist" },
+  { "time": "2", "budget": "0", "category": "At Home", "idea": "Build a blanket fort and watch a movie inside it" },
+  { "time": "4", "budget": "20", "category": "Outdoors", "idea": "Pack a picnic and hike to a view" },
+  { "time": "3", "budget": "60", "category": "Entertainment", "idea": "Dinner and a movie, old-school" },
+  { "time": "2", "budget": "30", "category": "Entertainment", "idea": "Bowling, loser buys the shakes" },
+  { "time": "1", "budget": "10", "category": "Creative", "idea": "Thrift-store challenge: $5 outfits for each other" },
+  { "time": "2", "budget": "15", "category": "Creative", "idea": "Paint each other's portraits, no peeking" },
+  { "time": "1", "budget": "0", "category": "At Home", "idea": "Stargaze from the backyard with hot cocoa" },
+  { "time": "5", "budget": "100", "category": "Adventure", "idea": "Day trip to a town neither of us has visited" }
+]
