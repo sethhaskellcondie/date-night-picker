@@ -3,7 +3,7 @@ import { loadStored, store } from './shared';
 import fallbackRows from './fallback-activities.json';
 
 export interface Activity {
-  time: number; // hours, whole number ≥ 0 (0 = under an hour)
+  time: number; // hours, whole number ≥ 0 (0 = less than an hour)
   budget: number; // dollars, whole number ≥ 0 (0 = free)
   category: string;
   idea: string;
@@ -24,6 +24,14 @@ export function toWholeNumber(value: unknown): number | null {
   return Number(text.replaceAll(',', ''));
 }
 
+// Hours: a whole number, or anything under an hour (0.5, ".25") as 0, which is
+// "Less than an hour". Longer fractions like 1.5 are still rejected.
+export function toHours(value: unknown): number | null {
+  const n = typeof value === 'string' ? Number(value.trim()) : value;
+  if (typeof n === 'number' && n > 0 && n < 1) return 0;
+  return toWholeNumber(value);
+}
+
 function cleanText(value: unknown): string {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
 }
@@ -32,8 +40,8 @@ function cleanText(value: unknown): string {
 function parseRow(row: unknown): Activity | string {
   if (typeof row !== 'object' || row === null) return 'not a row object';
   const r = row as Record<string, unknown>;
-  const time = toWholeNumber(r.time);
-  if (time === null) return `time ${JSON.stringify(r.time)} isn't a whole number ≥ 0`;
+  const time = toHours(r.time);
+  if (time === null) return `time ${JSON.stringify(r.time)} isn't under 1 or a whole number`;
   const budget = toWholeNumber(r.budget);
   if (budget === null) return `budget ${JSON.stringify(r.budget)} isn't a whole number ≥ 0`;
   const idea = cleanText(r.idea);

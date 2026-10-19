@@ -23,20 +23,21 @@ export function sameCategory(a: string, b: string): boolean {
 
 // Dropdown labels. nearestFix uses them too, so its hints name real options.
 export function timeLabel(hours: number): string {
-  return hours === 0 ? 'Under an hour' : `Up to ${plural(hours, 'hour')}`;
+  return hours === 0 ? 'Less than an hour' : plural(hours, 'hour');
 }
 
 export function budgetLabel(dollars: number): string {
-  return dollars === 0 ? 'Free' : `Up to $${dollars.toLocaleString('en-US')}`;
+  return dollars === 0 ? 'Free' : `$${dollars.toLocaleString('en-US')}`;
 }
 
-// Both bounds are inclusive: a 3-hour idea fits "Up to 3 hours".
+// Time and budget match exactly: a 3-hour, $40 idea fits "3 hours" and "$40",
+// not "4 hours" or "$50".
 export function eligible(list: Activity[], f: Filters): Activity[] {
   const { category } = f;
   return list.filter(
     (a) =>
-      a.time <= f.hours &&
-      a.budget <= f.dollars &&
+      a.time === f.hours &&
+      a.budget === f.dollars &&
       (category === null || sameCategory(a.category, category)),
   );
 }
@@ -71,21 +72,46 @@ export function buildOptions(list: Activity[]): Options {
 }
 
 // Kept when it's still an option, else the largest option at or below it,
-// else the smallest. With nothing wanted, the largest (every idea fits).
-function snap(wanted: number | undefined, options: number[]): number {
+// else the smallest.
+function snap(wanted: number, options: number[]): number {
   if (!options.length) return 0;
-  if (wanted === undefined) return options[options.length - 1];
   const atOrBelow = options.filter((o) => o <= wanted);
   return atOrBelow.length ? atOrBelow[atOrBelow.length - 1] : options[0];
 }
 
-// Fits remembered or current choices onto freshly built options. A category
-// that's gone resets to "Any category".
-export function settleFilters(options: Options, wanted: Partial<Filters>): Filters {
+// The time and budget shared by the most ideas (the shorter, cheaper pair on
+// a tie), so untouched dropdowns always have ideas to pick from.
+function busiestPair(list: Activity[]): { hours: number; dollars: number } {
+  const counts = new Map<string, number>();
+  let best = { hours: 0, dollars: 0, count: 0 };
+  for (const a of list) {
+    const key = `${a.time}|${a.budget}`;
+    const count = (counts.get(key) ?? 0) + 1;
+    counts.set(key, count);
+    const beats =
+      count > best.count ||
+      (count === best.count && (a.time < best.hours || (a.time === best.hours && a.budget < best.dollars)));
+    if (beats) best = { hours: a.time, dollars: a.budget, count };
+  }
+  return { hours: best.hours, dollars: best.dollars };
+}
+
+// Fits remembered or current choices onto the options built from `list`. A
+// time or budget that was never chosen goes to the busiest pair that agrees
+// with the other choice. A category that's gone resets to "Any category".
+export function settleFilters(list: Activity[], wanted: Partial<Filters>): Filters {
+  const options = buildOptions(list);
   const want = wanted.category;
+  const hours = wanted.hours === undefined ? undefined : snap(wanted.hours, options.times);
+  const dollars = wanted.dollars === undefined ? undefined : snap(wanted.dollars, options.budgets);
+  const busiest = busiestPair(
+    list.filter(
+      (a) => (hours === undefined || a.time === hours) && (dollars === undefined || a.budget === dollars),
+    ),
+  );
   return {
-    hours: snap(wanted.hours, options.times),
-    dollars: snap(wanted.dollars, options.budgets),
+    hours: hours ?? busiest.hours,
+    dollars: dollars ?? busiest.dollars,
     category: want ? (options.categories.find((c) => sameCategory(c, want)) ?? null) : null,
   };
 }
@@ -95,9 +121,18 @@ function joinOr(items: string[]): string {
   return `${items.slice(0, -1).join(', ')}, or ${items[items.length - 1]}`;
 }
 
+// The option nearest `current`, the smaller on a tie.
+function closest(values: number[], current: number): number {
+  return values.reduce((best, v) => {
+    const d = Math.abs(v - current);
+    const bestD = Math.abs(best - current);
+    return d < bestD || (d === bestD && v < best) ? v : best;
+  });
+}
+
 // The empty-pool hint, phrased in dropdown terms. Each suggestion on its own
 // makes at least one idea fit, e.g.
-// "No Outdoors ideas fit — try Up to $40, Up to 3 hours, or Any category".
+// "No Outdoors ideas fit — try $40, 3 hours, or Any category".
 // Returns '' when ideas already fit.
 export function nearestFix(list: Activity[], f: Filters): string {
   if (!list.length) return 'No date ideas are loaded yet.';
@@ -107,10 +142,10 @@ export function nearestFix(list: Activity[], f: Filters): string {
   const inCategory =
     category === null ? list : list.filter((a) => sameCategory(a.category, category));
   const fixes: string[] = [];
-  const budgets = inCategory.filter((a) => a.time <= f.hours).map((a) => a.budget);
-  if (budgets.length) fixes.push(budgetLabel(Math.min(...budgets)));
-  const times = inCategory.filter((a) => a.budget <= f.dollars).map((a) => a.time);
-  if (times.length) fixes.push(timeLabel(Math.min(...times)));
+  const budgets = inCategory.filter((a) => a.time === f.hours).map((a) => a.budget);
+  if (budgets.length) fixes.push(budgetLabel(closest(budgets, f.dollars)));
+  const times = inCategory.filter((a) => a.budget === f.dollars).map((a) => a.time);
+  if (times.length) fixes.push(timeLabel(closest(times, f.hours)));
   if (category !== null && eligible(list, { ...f, category: null }).length) {
     fixes.push('Any category');
   }
@@ -122,41 +157,4 @@ export function nearestFix(list: Activity[], f: Filters): string {
 
   const subject = category === null ? 'No ideas fit' : `No ${category} ideas fit`;
   return fixes.length ? `${subject} — try ${joinOr(fixes)}` : `${subject}.`;
-}
-
-function shuffle<T>(items: readonly T[], rng: () => number): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
-// The spin reel: the pool shuffled and repeated to `slots` items with the
-// winner last. The slot before it is the near miss, and it's a different idea
-// whenever the pool has one.
-export function buildReel<T>(
-  pool: readonly T[],
-  winner: T,
-  slots = 30,
-  rng: () => number = Math.random,
-): T[] {
-  if (!pool.length) return [winner];
-  const strip: T[] = [];
-  while (strip.length < slots - 1) {
-    const round = shuffle(pool, rng);
-    // No idea twice in a row across the seam between rounds.
-    if (round.length > 1 && round[0] === strip[strip.length - 1]) round.push(round.shift()!);
-    strip.push(...round);
-  }
-  strip.length = Math.max(slots - 1, 0);
-
-  const others = pool.filter((p) => p !== winner);
-  if (others.length && strip.length && strip[strip.length - 1] === winner) {
-    const fresh = others.filter((p) => p !== strip[strip.length - 2]);
-    strip[strip.length - 1] = pickRandom(fresh.length ? fresh : others, rng)!;
-  }
-  strip.push(winner);
-  return strip;
 }

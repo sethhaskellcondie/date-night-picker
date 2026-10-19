@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FALLBACK, parseActivities, toWholeNumber } from './activities';
+import { FALLBACK, parseActivities, toHours, toWholeNumber } from './activities';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -28,6 +28,25 @@ describe('toWholeNumber', () => {
       expect(toWholeNumber(input)).toBeNull();
     },
   );
+});
+
+describe('toHours', () => {
+  it.each([
+    [0, 0],
+    ['0', 0],
+    [0.5, 0],
+    ['0.5', 0],
+    [' .25 ', 0],
+    [0.99, 0],
+    [1, 1],
+    ['3', 3],
+  ])('accepts %j as %d', (input, expected) => {
+    expect(toHours(input)).toBe(expected);
+  });
+
+  it.each([['', '   ', 'abc', '-0.5', -0.5, '1.5', 1.5, NaN, null, undefined]])('rejects %j', (input) => {
+    expect(toHours(input)).toBeNull();
+  });
 });
 
 describe('parseActivities', () => {
@@ -77,7 +96,12 @@ describe('parseActivities', () => {
   it('rejects negative and fractional numbers', () => {
     quietWarnings();
     expect(parseActivities([{ ...row, budget: '-5' }])).toBeNull();
+    expect(parseActivities([{ ...row, budget: '0.5' }])).toBeNull();
     expect(parseActivities([{ ...row, time: '1.5' }])).toBeNull();
+  });
+
+  it('reads a time under an hour as 0', () => {
+    expect(parseActivities([{ ...row, time: '0.5' }])?.[0].time).toBe(0);
   });
 
   it('returns null when every row is bad', () => {

@@ -48,21 +48,23 @@ function noiseBuffer(c: AudioContext): AudioBuffer {
   return noise;
 }
 
-// A short blip for each reel item that crosses the center line.
-export function tick(): void {
+// A soft snap for each dealt card that lands: a burst of filtered noise.
+export function snap(): void {
   const a = audio();
   if (!a) return;
   const t = a.ctx.currentTime;
-  const osc = a.ctx.createOscillator();
+  const src = a.ctx.createBufferSource();
+  src.buffer = noiseBuffer(a.ctx);
+  const filter = a.ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 2400 + Math.random() * 400;
+  filter.Q.value = 1.2;
   const env = a.ctx.createGain();
-  osc.type = 'square';
-  osc.frequency.setValueAtTime(1500 + Math.random() * 200, t);
-  osc.frequency.exponentialRampToValueAtTime(800, t + 0.03);
-  env.gain.setValueAtTime(0.05, t);
-  env.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-  osc.connect(env).connect(a.out);
-  osc.start(t);
-  osc.stop(t + 0.05);
+  env.gain.setValueAtTime(0.35, t);
+  env.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+  src.connect(filter).connect(env).connect(a.out);
+  src.start(t, Math.random() * 0.5);
+  src.stop(t + 0.08);
 }
 
 export interface Drumroll {

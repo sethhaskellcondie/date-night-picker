@@ -1,29 +1,28 @@
 import type { Activity } from './activities';
 import { categoryStyle } from './categories';
 import { burstConfetti, clearConfetti } from './confetti';
-import { buildReel } from './picker';
-import { renderDeck, renderFlipCard, renderReel } from './render';
+import { renderDeck, renderFlipCard } from './render';
 import { byId } from './shared';
-import { drumroll, taDa, tick, type Drumroll } from './sound';
+import { drumroll, snap, taDa, type Drumroll } from './sound';
 
 // Every duration in the reveal, in ms and in timeline order. Tune the feel
-// here; the whole full sequence runs about 7 s.
+// here; the whole full sequence runs about 5.5 s.
 export const REVEAL_TIMINGS = {
   lockIn: 400, // 1. the form shrinks away and the backdrop dims
   shuffle: 1000, // 2. the deck riffles; the drumroll starts
-  spin: 3000, // 3. the reel spins, slows and crawls onto the near miss
-  nearMissHold: 450, // 4. "…is it?"
-  nearMissStep: 350, //    then one click forward with an overshoot
-  hold: 800, // 5. heartbeat pulses while the drumroll swells, then cuts
-  flip: 700, // 6. the card flips face up and scales in…
+  deal: 450, // 3. each card's flight from the deck to its place…
+  dealGap: 300, //    …and the gap before the next card leaves
+  clear: 450, // 4. the outside cards slide away face down…
+  hold: 1100, //    …while the middle card's heartbeat and the drumroll swell, then cut
+  turn: 220, // 5. the middle card turns edge-on…
+  flip: 650, //    …and comes round as the winner, growing to full size…
   reveal: 1200, //    …inside the whole reveal stage
-  single: 1600, // a pool of one: drumroll over the face-down card instead of 2–5
-  choosing: 1000, // reduced motion: a "Choosing…" fade instead of 1–5
+  single: 1600, // a pool of one: drumroll over the face-down card instead of 2–4
+  choosing: 1000, // reduced motion: a "Choosing…" fade instead of 1–4
   close: 250, // the stage fades out on Change plans
 };
 
 const T = REVEAL_TIMINGS;
-const REEL_SLOTS = 30;
 const BRAND_COLORS = ['#ff6f91', '#ffc56b', '#c9a7ff', '#fff4e0'];
 
 export interface RevealRequest {
@@ -70,22 +69,6 @@ class Run {
     return this.pause((done) => {
       const timer = setTimeout(done, ms);
       return () => clearTimeout(timer);
-    });
-  }
-
-  // Calls step(t) every frame with t going 0 → 1 over `ms`.
-  frames(ms: number, step: (t: number) => void): Promise<void> {
-    return this.pause((done) => {
-      const start = performance.now();
-      let raf = 0;
-      const frame = (now: number) => {
-        const t = Math.min((now - start) / ms, 1);
-        step(t);
-        if (t < 1) raf = requestAnimationFrame(frame);
-        else done();
-      };
-      raf = requestAnimationFrame(frame);
-      return () => cancelAnimationFrame(raf);
     });
   }
 
@@ -174,18 +157,6 @@ const HEARTBEAT: Keyframe[] = [
   { transform: 'scale(1)' },
 ];
 
-// Fast at first, then a long slow-down; the tail is the crawl.
-function spinEase(t: number): number {
-  return 1 - (1 - t) ** 2.4;
-}
-
-// Overshoots past 1, then settles back onto it.
-function easeOutBack(t: number): number {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
-}
-
 function openStage(els: Stage): void {
   closing?.cancel();
   closing = null;
@@ -240,46 +211,67 @@ async function shuffle(run: Run, els: Stage, req: RevealRequest, fx: Effects): P
   await run.wait(T.shuffle);
 }
 
-// 3. Spin and 4. near miss. Resolves with the reel.
-async function spin(run: Run, els: Stage, req: RevealRequest): Promise<HTMLElement> {
-  const slots = buildReel(req.pool, req.winner, REEL_SLOTS);
-  els.center.innerHTML = renderReel(slots);
-  const reel = els.center.querySelector<HTMLElement>('.reel');
-  const strip = els.center.querySelector<HTMLElement>('.reel__strip');
-  if (!reel || !strip) throw new Error('The reel failed to render');
-  const items = [...strip.children] as HTMLElement[];
-  items[items.length - 1].classList.add('is-winner');
-  const itemHeight = items[0].getBoundingClientRect().height;
-
-  // Moves the strip so slot `pos` sits on the center line, ticking once for
-  // each new slot that arrives there. Nothing changes color as items pass;
-  // only the small category chips are colored, so nothing flashes.
-  let centered = 0;
-  const place = (pos: number) => {
-    strip.style.transform = `translateY(${-pos * itemHeight}px)`;
-    const index = Math.round(pos);
-    if (index === centered) return;
-    centered = index;
-    tick();
-  };
-
-  const nearMiss = slots.length - 2;
-  run.fx(reel, [{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
-  await run.frames(T.spin, (t) => place(nearMiss * spinEase(t)));
-
-  setCaption(run, els, '…is it?');
-  await run.wait(T.nearMissHold);
-  await run.frames(T.nearMissStep, (t) => place(nearMiss + easeOutBack(t)));
-  return reel;
+// The dealt cards: the middle one is the one that gets turned over.
+interface Table {
+  middle: HTMLElement;
+  sides: HTMLElement[];
 }
 
-// 5. Hold: everything but the winner fades, the framed winner gets two
-// heartbeats, and the drumroll swells and cuts.
-async function hold(run: Run, els: Stage, reel: Element, fx: Effects): Promise<void> {
+// 3. Deal: the top three cards fly out face down to the left, the right and
+// then the middle, each landing with a snap, and the rest of the deck fades
+// away under the middle card. Every card is a plain back; the winner is
+// only rendered once the middle card turns over.
+async function deal(run: Run, els: Stage): Promise<Table> {
+  setCaption(run, els, 'Dealing the cards…');
+  const cards = [...els.center.querySelectorAll<HTMLElement>('.deck__card')];
+  if (cards.length < 3) throw new Error('The deck failed to render');
+  const [left, right, middle] = cards.slice(-3).reverse(); // top card first
+  const rest = cards.slice(0, -3);
+
+  [left, right, middle].forEach((card, k) => {
+    const slot = card === left ? -1 : card === right ? 1 : 0;
+    // The card is moved to its place first, then flown in from the deck.
+    const stacked = getComputedStyle(card).translate;
+    card.style.setProperty('--slot', String(slot));
+    card.classList.add('is-dealt');
+    const dealt = getComputedStyle(card).translate;
+    const flight = run.fx(
+      card,
+      [
+        { translate: stacked, transform: 'none' },
+        { transform: `translateY(-16px) rotate(${slot * -5}deg) scale(1.06)`, offset: 0.5 },
+        { translate: dealt, transform: 'none' },
+      ],
+      { duration: T.deal, delay: k * T.dealGap, easing: 'cubic-bezier(0.3, 0.6, 0.3, 1)', fill: 'backwards' },
+    );
+    flight?.finished.then(snap, () => {});
+  });
+  for (const card of rest) {
+    card.style.opacity = '0';
+    run.fx(card, [{ opacity: 1 }, { opacity: 0 }], { duration: T.deal, delay: 2 * T.dealGap, fill: 'backwards' });
+  }
+  await run.wait(2 * T.dealGap + T.deal);
+  return { middle, sides: [left, right] };
+}
+
+// 4. Hold: the outside cards slide away face down, never turned, and the
+// middle card gets two heartbeats while the drumroll swells and cuts.
+async function hold(run: Run, els: Stage, table: Table, fx: Effects): Promise<void> {
   setCaption(run, els, "Tonight's date is…");
-  reel.classList.add('reel--hold');
+  for (const card of table.sides) {
+    const dir = Number(card.style.getPropertyValue('--slot'));
+    card.style.opacity = '0';
+    run.fx(
+      card,
+      [
+        { opacity: 1, transform: 'none' },
+        { opacity: 0, transform: `translate(${dir * 36}px, 18px) rotate(${dir * 8}deg) scale(0.9)` },
+      ],
+      { duration: T.clear, easing: 'ease-in' },
+    );
+  }
   fx.drum?.swell(T.hold);
-  await run.play(reel, HEARTBEAT, { duration: T.hold, easing: 'ease-in-out' });
+  await run.play(table.middle, HEARTBEAT, { duration: T.hold, easing: 'ease-in-out' });
   fx.drum?.stop();
 }
 
@@ -294,54 +286,58 @@ function celebrate(req: RevealRequest, fx: Effects, confetti: boolean): void {
   }
 }
 
-// 6. Reveal: the card flips face up and scales in, rays turn behind it, and
-// confetti and the ta-da land as its face comes round.
-async function flip(run: Run, els: Stage, req: RevealRequest, fx: Effects): Promise<void> {
-  if (!els.center.querySelector('.flip')) els.center.innerHTML = renderFlipCard(req.winner, true);
-  const card = els.center.querySelector('.flip');
-  const inner = els.center.querySelector('.flip__inner');
-  if (!card || !inner) throw new Error('The flip card failed to render');
-  card.classList.remove('flip--down');
+// 5. Reveal: the face-down card turns edge-on, then comes round as the
+// winner's face and grows to full size. Rays turn behind it, and confetti and
+// the ta-da land as its face comes round.
+async function flip(run: Run, els: Stage, req: RevealRequest, fx: Effects, card: Element): Promise<void> {
   els.root.classList.add('stage--rays');
-  const flipping = run.play(
-    inner,
+  await run.play(card, [{ transform: 'none' }, { transform: 'rotateY(90deg) scale(1.06)' }], {
+    duration: T.turn,
+    easing: 'ease-in',
+  });
+  els.center.innerHTML = renderFlipCard(req.winner);
+  const face = els.center.querySelector('.result');
+  if (!face) throw new Error('The result card failed to render');
+  const turning = run.play(
+    face,
     [
-      { transform: 'rotateY(0deg) scale(0.7)' },
-      { transform: 'rotateY(200deg) scale(1.05)', offset: 0.7 },
-      { transform: 'rotateY(180deg) scale(1)' },
+      { transform: 'rotateY(-90deg) scale(0.6)' },
+      { transform: 'rotateY(20deg) scale(1.05)', offset: 0.6 },
+      { transform: 'none' },
     ],
     { duration: T.flip, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' },
   );
-  flipping.catch(() => {}); // a skip rejects it while the wait below is pending
-  await run.wait(T.flip * 0.45);
+  turning.catch(() => {}); // a skip rejects it while the wait below is pending
+  await run.wait(T.flip * 0.2);
   celebrate(req, fx, true);
-  await flipping;
-  await run.wait(T.reveal - T.flip);
+  await turning;
+  await run.wait(T.reveal - T.turn - T.flip);
 }
 
 async function playFull(run: Run, els: Stage, req: RevealRequest, fx: Effects, opening: boolean): Promise<void> {
   if (opening) await lockIn(run, els);
   await shuffle(run, els, req, fx);
-  const reel = await spin(run, els, req);
-  await hold(run, els, reel, fx);
-  await flip(run, els, req, fx);
+  const table = await deal(run, els);
+  await hold(run, els, table, fx);
+  await flip(run, els, req, fx, table.middle);
 }
 
-// A pool of one skips the shuffle and the reel, but not the suspense.
+// A pool of one skips the shuffle and the deal, but not the suspense.
 async function playSingle(run: Run, els: Stage, req: RevealRequest, fx: Effects, opening: boolean): Promise<void> {
   if (opening) await lockIn(run, els);
   setCaption(run, els, 'Only one idea fits… but you still get a drumroll.');
-  els.center.innerHTML = renderFlipCard(req.winner, true);
+  els.center.innerHTML = renderDeck(1);
+  const card = els.center.querySelector('.deck__card');
+  if (!card) throw new Error('The card failed to render');
   fx.drum = drumroll();
   fx.drum.swell(T.single);
-  const card = els.center.querySelector('.flip');
-  if (card) await run.play(card, HEARTBEAT, { duration: T.single, easing: 'ease-in-out' });
+  await run.play(card, HEARTBEAT, { duration: T.single, easing: 'ease-in-out' });
   fx.drum.stop();
   setCaption(run, els, "Tonight's date is…");
-  await flip(run, els, req, fx);
+  await flip(run, els, req, fx, card);
 }
 
-// Reduced motion: no shrinking, riffling, spinning, flipping, rays or
+// Reduced motion: no shrinking, riffling, dealing, flipping, rays or
 // confetti. Just a fade, a pause and the answer. Sound still plays.
 async function playReduced(run: Run, els: Stage, req: RevealRequest, fx: Effects, opening: boolean): Promise<void> {
   if (opening) await run.play(els.root, [{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
@@ -356,11 +352,10 @@ async function playReduced(run: Run, els: Stage, req: RevealRequest, fx: Effects
   await run.play(els.center, [{ opacity: 0 }, { opacity: 1 }], { duration: 400 });
 }
 
-// 7. Settle: the end state of stage 6, reached by finishing or by skipping.
+// 6. Settle: the end state of stage 5, reached by finishing or by skipping.
 function settle(els: Stage, req: RevealRequest, fx: Effects, reduced: boolean): void {
   fx.drum?.stop();
-  if (!els.center.querySelector('.flip')) els.center.innerHTML = renderFlipCard(req.winner);
-  els.center.querySelector('.flip')?.classList.remove('flip--down');
+  if (!els.center.querySelector('.result')) els.center.innerHTML = renderFlipCard(req.winner);
   els.root.classList.toggle('stage--rays', !reduced);
   els.caption.textContent = "Tonight's date is…";
   celebrate(req, fx, !reduced);
@@ -384,7 +379,7 @@ function settle(els: Stage, req: RevealRequest, fx: Effects, reduced: boolean): 
 }
 
 // Runs the whole reveal and resolves once it has settled on the winner. Opens
-// the stage if it isn't up yet; "Spin again" reuses the open stage and starts
+// the stage if it isn't up yet; "Deal again" reuses the open stage and starts
 // at the shuffle.
 export async function runReveal(req: RevealRequest): Promise<void> {
   const els = stageEls();

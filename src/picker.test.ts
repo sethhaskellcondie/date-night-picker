@@ -3,7 +3,6 @@ import type { Activity } from './activities';
 import {
   budgetLabel,
   buildOptions,
-  buildReel,
   eligible,
   nearestFix,
   pickRandom,
@@ -38,19 +37,21 @@ const list: Activity[] = [
 const any = (hours: number, dollars: number): Filters => ({ hours, dollars, category: null });
 
 describe('eligible', () => {
-  it('treats both bounds as inclusive', () => {
-    expect(eligible(list, any(3, 40))).toContain(list[0]);
-    expect(eligible(list, any(2, 40))).not.toContain(list[0]);
-    expect(eligible(list, any(3, 39))).not.toContain(list[0]);
+  it('matches time and budget exactly', () => {
+    expect(eligible(list, any(3, 40))).toEqual([list[0]]);
+    expect(eligible(list, any(4, 40))).toEqual([]);
+    expect(eligible(list, any(2, 40))).toEqual([]);
+    expect(eligible(list, any(3, 50))).toEqual([]);
+    expect(eligible(list, any(3, 20))).toEqual([]);
   });
 
-  it('returns everything that fits with "Any category"', () => {
-    expect(eligible(list, any(5, 100))).toEqual(list);
-    expect(eligible(list, any(0, 0))).toEqual([list[4]]);
+  it('returns every category with "Any category"', () => {
+    const shared = [activity(1, 0, 'Food'), activity(1, 0, 'Outdoors'), activity(2, 0, 'Food')];
+    expect(eligible(shared, any(1, 0))).toEqual(shared.slice(0, 2));
   });
 
   it('matches categories ignoring case and spaces', () => {
-    expect(eligible(list, { hours: 5, dollars: 100, category: ' FOOD ' })).toEqual([list[0], list[2]]);
+    expect(eligible(list, { hours: 2, dollars: 0, category: ' FOOD ' })).toEqual([list[2]]);
     expect(eligible(list, { hours: 1, dollars: 0, category: 'outdoors' })).toEqual([list[1]]);
   });
 });
@@ -97,14 +98,30 @@ describe('buildOptions', () => {
 });
 
 describe('settleFilters', () => {
-  const options = buildOptions(list);
+  const busy = [
+    activity(1, 0, 'Food'),
+    activity(1, 10, 'Food'),
+    activity(1, 10, 'Outdoors'),
+    activity(3, 20, 'Food'),
+    activity(3, 20, 'Outdoors'),
+    activity(3, 20, 'At Home'),
+  ];
 
-  it('defaults to the largest time and budget and any category', () => {
-    expect(settleFilters(options, {})).toEqual({ hours: 5, dollars: 100, category: null });
+  it('defaults to the time and budget shared by the most ideas, and any category', () => {
+    expect(settleFilters(busy, {})).toEqual({ hours: 3, dollars: 20, category: null });
+  });
+
+  it('breaks a tie with the shorter, cheaper pair', () => {
+    expect(settleFilters(list, {})).toMatchObject({ hours: 0, dollars: 0 });
+  });
+
+  it('fills an unchosen value from the busiest pair that agrees with the other', () => {
+    expect(settleFilters(busy, { hours: 1 })).toMatchObject({ hours: 1, dollars: 10 });
+    expect(settleFilters(busy, { dollars: 0 })).toMatchObject({ hours: 1, dollars: 0 });
   });
 
   it('keeps choices that are still options', () => {
-    expect(settleFilters(options, { hours: 2, dollars: 20, category: 'Food' })).toEqual({
+    expect(settleFilters(list, { hours: 2, dollars: 20, category: 'Food' })).toEqual({
       hours: 2,
       dollars: 20,
       category: 'Food',
@@ -112,28 +129,28 @@ describe('settleFilters', () => {
   });
 
   it('snaps a missing value to the largest option at or below it', () => {
-    expect(settleFilters(options, { hours: 10, dollars: 30 })).toMatchObject({ hours: 5, dollars: 20 });
+    expect(settleFilters(list, { hours: 10, dollars: 30 })).toMatchObject({ hours: 5, dollars: 20 });
   });
 
   it('snaps to the smallest option when nothing is at or below', () => {
-    const tight = buildOptions([activity(2, 15, 'Food')]);
+    const tight = [activity(2, 15, 'Food')];
     expect(settleFilters(tight, { hours: 1, dollars: 5 })).toMatchObject({ hours: 2, dollars: 15 });
   });
 
   it('uses the option spelling for a category and resets a missing one', () => {
-    expect(settleFilters(options, { category: 'outdoors' }).category).toBe('Outdoors');
-    expect(settleFilters(options, { category: 'Museums' }).category).toBeNull();
+    expect(settleFilters(list, { category: 'outdoors' }).category).toBe('Outdoors');
+    expect(settleFilters(list, { category: 'Museums' }).category).toBeNull();
   });
 });
 
 describe('labels', () => {
   it('names times and budgets the way the dropdowns do', () => {
-    expect(timeLabel(0)).toBe('Under an hour');
-    expect(timeLabel(1)).toBe('Up to 1 hour');
-    expect(timeLabel(3)).toBe('Up to 3 hours');
+    expect(timeLabel(0)).toBe('Less than an hour');
+    expect(timeLabel(1)).toBe('1 hour');
+    expect(timeLabel(3)).toBe('3 hours');
     expect(budgetLabel(0)).toBe('Free');
-    expect(budgetLabel(40)).toBe('Up to $40');
-    expect(budgetLabel(1200)).toBe('Up to $1,200');
+    expect(budgetLabel(40)).toBe('$40');
+    expect(budgetLabel(1200)).toBe('$1,200');
   });
 });
 
@@ -145,48 +162,36 @@ describe('nearestFix', () => {
   it('offers each dropdown change that would make an idea fit', () => {
     const outdoors = [activity(1, 40, 'Outdoors'), activity(3, 0, 'Outdoors'), activity(1, 0, 'Food')];
     expect(nearestFix(outdoors, { hours: 1, dollars: 0, category: 'Outdoors' })).toBe(
-      'No Outdoors ideas fit — try Up to $40, Up to 3 hours, or Any category',
+      'No Outdoors ideas fit — try $40, 3 hours, or Any category',
     );
   });
 
-  it('suggests the smallest raise that works', () => {
-    const ideas = [activity(1, 60, 'Food'), activity(1, 25, 'Food'), activity(3, 0, 'Food')];
-    expect(nearestFix(ideas, { hours: 1, dollars: 0, category: 'Food' })).toBe(
-      'No Food ideas fit — try Up to $25 or Up to 3 hours',
+  it('suggests the closest option that works, up or down', () => {
+    const ideas = [
+      activity(2, 60, 'Food'),
+      activity(2, 25, 'Food'),
+      activity(2, 0, 'Food'),
+      activity(5, 30, 'Food'),
+      activity(1, 30, 'Food'),
+    ];
+    expect(nearestFix(ideas, { hours: 2, dollars: 30, category: 'Food' })).toBe(
+      'No Food ideas fit — try $25 or 1 hour',
     );
+  });
+
+  it('prefers the smaller option on a tie', () => {
+    const ideas = [activity(2, 40, 'Food'), activity(2, 20, 'Food')];
+    expect(nearestFix(ideas, { hours: 2, dollars: 30, category: 'Food' })).toBe('No Food ideas fit — try $20');
   });
 
   it('suggests a combined change when no single one is enough', () => {
     const ideas = [activity(3, 40, 'Outdoors'), activity(1, 50, 'Food'), activity(4, 0, 'Food')];
     expect(nearestFix(ideas, { hours: 1, dollars: 0, category: 'Outdoors' })).toBe(
-      'No Outdoors ideas fit — try Up to $40 and Up to 3 hours',
+      'No Outdoors ideas fit — try $40 and 3 hours',
     );
   });
 
   it('explains an empty list', () => {
     expect(nearestFix([], any(0, 0))).toBe('No date ideas are loaded yet.');
-  });
-});
-
-describe('buildReel', () => {
-  const pool = list.slice(0, 4);
-
-  it('fills the slots with pool items and ends on the winner', () => {
-    const reel = buildReel(pool, pool[2], 30, seeded(7));
-    expect(reel).toHaveLength(30);
-    expect(reel[29]).toBe(pool[2]);
-    expect(reel.every((a) => pool.includes(a))).toBe(true);
-  });
-
-  it('never makes the near miss the winner when the pool has another idea', () => {
-    for (let seed = 0; seed < 200; seed++) {
-      const two = pool.slice(0, 2);
-      const reel = buildReel(two, two[seed % 2], 30, seeded(seed));
-      expect(reel[28]).not.toBe(reel[29]);
-    }
-  });
-
-  it('works with a pool of one', () => {
-    expect(buildReel([pool[0]], pool[0], 5)).toEqual(Array(5).fill(pool[0]));
   });
 });

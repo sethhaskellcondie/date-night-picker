@@ -24,9 +24,6 @@ export function renderShell(): string {
       <header class="masthead">
         <p class="eyebrow">✦ Tonight's plan ✦</p>
         <h1 class="masthead__title">Date Night <em>Picker</em></h1>
-        <p class="masthead__tagline">
-          Tell us how much time and money you've got. We'll pull tonight's date out of the hat.
-        </p>
         <p class="hat-count" id="hat-count"></p>
       </header>
       <form class="planner" id="planner">
@@ -35,7 +32,7 @@ export function renderShell(): string {
         ${field('f-category', 'Category', ' <span class="field__optional">optional</span>')}
         <div class="planner__footer">
           <p class="fit" id="fit" aria-live="polite"></p>
-          <button type="submit" class="btn btn--primary" id="pick">Pick our date ✨</button>
+          <button type="submit" class="btn btn--primary" id="pick">Pick a date ✨</button>
         </div>
       </form>
     </main>
@@ -46,7 +43,7 @@ export function renderShell(): string {
         <p class="stage__caption" id="stage-caption"></p>
         <div class="stage__center"></div>
         <div class="stage__actions" hidden>
-          <button type="button" class="btn btn--primary" data-action="again">Spin again</button>
+          <button type="button" class="btn btn--primary" data-action="again">Deal again</button>
           <button type="button" class="btn btn--ghost" data-action="change">Change plans</button>
         </div>
         <p class="stage__skip">Tap or press Space to skip</p>
@@ -100,35 +97,17 @@ function budgetChip(dollars: number): string {
   return dollars === 0 ? 'Free' : `$${dollars.toLocaleString('en-US')}`;
 }
 
-// Face-down card art, shared by the shuffle deck and the flip card.
+// Face-down card art.
 const CARD_BACK = '<span class="card-back__mark">♥</span>';
 
-export function renderDeck(): string {
+// A stack of plain card backs in the middle of the table, which the reveal
+// shuffles and deals. No idea is on any of them.
+export function renderDeck(count = 5): string {
   const cards = Array.from(
-    { length: 5 },
+    { length: count },
     (_, i) => `<div class="card-back deck__card" style="--i: ${i}">${CARD_BACK}</div>`,
   ).join('');
   return `<div class="deck" aria-hidden="true">${cards}</div>`;
-}
-
-export function renderReel(slots: Activity[]): string {
-  const items = slots
-    .map((a) => {
-      const { emoji, color } = categoryStyle(a.category);
-      return `
-        <li class="reel__item">
-          <span class="reel__chip" style="--cat: ${color}">${emoji}</span>
-          <span class="reel__text">${esc(a.idea)}</span>
-        </li>
-      `;
-    })
-    .join('');
-  return `
-    <div class="reel" aria-hidden="true">
-      <ul class="reel__strip">${items}</ul>
-      <div class="reel__frame"></div>
-    </div>
-  `;
 }
 
 function renderResult(a: Activity): string {
@@ -145,15 +124,8 @@ function renderResult(a: Activity): string {
   `;
 }
 
-// The winner on a two-sided card. It rests face up; `faceDown` starts it the
-// other way round so the reveal can flip it.
-export function renderFlipCard(a: Activity, faceDown = false): string {
-  return `
-    <div class="flip${faceDown ? ' flip--down' : ''}">
-      <div class="flip__inner">
-        <div class="flip__face flip__face--down card-back" aria-hidden="true">${CARD_BACK}</div>
-        <div class="flip__face flip__face--up">${renderResult(a)}</div>
-      </div>
-    </div>
-  `;
+// The winner's face, the far side of the dealt card. It rests face up; the
+// reveal turns it in from edge-on.
+export function renderFlipCard(a: Activity): string {
+  return `<div class="flip">${renderResult(a)}</div>`;
 }

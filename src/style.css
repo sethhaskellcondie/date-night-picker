@@ -182,14 +182,6 @@ select {
   color: transparent;
 }
 
-.masthead__tagline {
-  max-width: 34ch;
-  margin: 14px auto 0;
-  font-size: 16px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
 .hat-count {
   display: inline-flex;
   align-items: center;
@@ -492,13 +484,13 @@ select {
   color: var(--faint);
 }
 
-/* ---------- Cards: deck, reel and the flip ---------- */
+/* ---------- Cards: the deck, the deal and the flip ---------- */
 
 .card-back {
   display: grid;
   place-items: center;
   border: 2px solid rgba(255, 197, 107, 0.65);
-  border-radius: 18px;
+  border-radius: 16px;
   background:
     radial-gradient(circle at 50% 50%, rgba(255, 111, 145, 0.35) 0 22%, transparent 23%),
     repeating-linear-gradient(45deg, #3a1f55 0 10px, #2d1844 10px 20px);
@@ -508,126 +500,42 @@ select {
 }
 
 .card-back__mark {
-  font-size: 40px;
+  font-size: calc(var(--card-w) * 0.3);
   color: var(--gold);
   text-shadow: 0 0 18px rgba(255, 197, 107, 0.6);
 }
 
+/* The table: the deck stacks in the middle, and the deal spreads three cards
+   into a row that fits a phone. */
 .deck {
+  --card-w: min(124px, (100vw - 32px - 2 * var(--card-gap)) / 3);
+  --card-gap: 14px;
   position: relative;
-  width: 132px;
-  height: 184px;
+  width: calc(var(--card-w) * 3 + var(--card-gap) * 2);
+  height: calc(var(--card-w) * 1.4);
+  perspective: 900px;
 }
 
-/* `translate` stacks the cards; the riffle animates `transform` on top. */
+/* `translate` places a card, stacked or dealt; the riffle, the deal and the
+   flip animate `transform` on top. */
 .deck__card {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 50%;
+  width: var(--card-w);
+  height: 100%;
+  margin-left: calc(var(--card-w) / -2);
   translate: calc(var(--i) * -2px) calc(var(--i) * -3px);
 }
 
-.reel {
-  --item-h: 64px;
-  position: relative;
-  width: min(100%, 420px);
-  height: calc(var(--item-h) * 3);
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(transparent, #000 28%, #000 72%, transparent);
-  mask-image: linear-gradient(transparent, #000 28%, #000 72%, transparent);
+.deck__card.is-dealt {
+  translate: calc(var(--slot) * (var(--card-w) + var(--card-gap))) 0;
 }
 
-.reel__strip {
-  position: absolute;
-  top: var(--item-h);
-  right: 0;
-  left: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  will-change: transform;
-}
-
-.reel__item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: var(--item-h);
-  padding: 0 18px;
-  font-family: var(--font-display);
-  font-size: 18px;
-  line-height: 1.2;
-}
-
-.reel__chip {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1.5px solid var(--cat);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--cat) 28%, transparent);
-  font-size: 16px;
-}
-
-/* Up to two lines, so most ideas show in full even on a phone. */
-.reel__text {
-  display: -webkit-box;
-  overflow: hidden;
-  text-align: left;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-
-.reel__frame {
-  position: absolute;
-  top: var(--item-h);
-  right: 0;
-  left: 0;
-  height: var(--item-h);
-  border: 2px solid rgba(255, 197, 107, 0.7);
-  border-radius: 16px;
-  box-shadow:
-    0 0 24px rgba(255, 197, 107, 0.25),
-    inset 0 0 18px rgba(255, 197, 107, 0.12);
-  pointer-events: none;
-}
-
-.reel--hold .reel__item:not(.is-winner) {
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-/* The card rests face up; .flip--down turns it over for the reveal. */
+/* The winner's face rests face up; the reveal turns it in from edge-on. */
 .flip {
   width: min(100%, 400px);
   perspective: 1400px;
-}
-
-.flip__inner {
-  display: grid;
-  transform: rotateY(180deg);
-  transform-style: preserve-3d;
-}
-
-.flip--down .flip__inner {
-  transform: none;
-}
-
-.flip__face {
-  grid-area: 1 / 1;
-  border-radius: 24px;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
-
-.flip__face--down {
-  min-height: 240px;
-}
-
-.flip__face--up {
-  transform: rotateY(180deg);
 }
 
 .result {
@@ -718,14 +626,6 @@ select {
   .planner {
     padding: 28px;
   }
-
-  .reel {
-    --item-h: 72px;
-  }
-
-  .reel__item {
-    font-size: 21px;
-  }
 }
 
 /* Landscape phones: tighten the stage so the result and buttons fit. */
@@ -741,10 +641,6 @@ select {
 
   .stage__center {
     min-height: 0;
-  }
-
-  .reel {
-    --item-h: 50px;
   }
 
   .result {

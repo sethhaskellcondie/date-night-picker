@@ -50,9 +50,9 @@ if (app) {
   console.info(`[date-night] ${activities.length} ideas from the ${cached ? 'cache' : 'fallback'}.`);
   // What the user last chose (empty until they choose), and that choice
   // settled onto the current options. Settling always starts from the real
-  // choice, so untouched dropdowns keep tracking the largest values.
+  // choice, so untouched dropdowns keep tracking the busiest time and budget.
   let wanted = readStoredFilters();
-  let filters = settleFilters(buildOptions(activities), wanted);
+  let filters = settleFilters(activities, wanted);
   let revealing = false;
   let pending: Activity[] | null = null;
 
@@ -73,7 +73,7 @@ if (app) {
   // they're still valid.
   const renderControls = () => {
     const options = buildOptions(activities);
-    filters = settleFilters(options, wanted);
+    filters = settleFilters(activities, wanted);
     timeSelect.innerHTML = renderTimeOptions(options.times, filters.hours);
     budgetSelect.innerHTML = renderBudgetOptions(options.budgets, filters.dollars);
     hatCount.textContent = hatCountText(activities.length);
@@ -90,7 +90,7 @@ if (app) {
     soundToggle.setAttribute('aria-pressed', String(isMuted()));
   };
 
-  const spin = async () => {
+  const deal = async () => {
     if (revealing) return;
     const pool = eligible(activities, filters);
     const winner = pickRandom(pool);
@@ -127,13 +127,13 @@ if (app) {
 
   planner.addEventListener('submit', (e) => {
     e.preventDefault();
-    void spin();
+    void deal();
   });
 
   stage.addEventListener('click', (e) => {
     if (!(e.target instanceof Element)) return;
     const action = e.target.closest<HTMLElement>('[data-action]')?.dataset.action;
-    if (action === 'again') void spin();
+    if (action === 'again') void deal();
     else if (action === 'change') closeStage();
   });
 

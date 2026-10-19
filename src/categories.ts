@@ -6,7 +6,7 @@ export interface CategoryStyle {
 }
 
 // Emoji and chip color per category, keyed by lowercase name. Feeds the
-// dropdown labels, reel chips and reveal badge.
+// dropdown labels and reveal badge.
 // TODO(Phase 2): rewrite from the real sheet's categories after `npm run
 // snapshot`; these cover the placeholder fallback plus a few likely ones.
 const KNOWN: Record<string, CategoryStyle | undefined> = {

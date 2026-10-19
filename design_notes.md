@@ -44,12 +44,12 @@ the next page load, with no build or deploy.
 | `src/config.ts` | `SCRIPT_URL`, the Apps Script endpoint (`''` = off) |
 | `src/activities.ts` | `Activity` type, `parseActivities` (row-by-row validation), localStorage cache, live fetch, bundled fallback |
 | `src/fallback-activities.json` | Snapshot of the sheet, written by `npm run snapshot` |
-| `src/picker.ts` | Pure logic: `eligible`, `pickRandom`, `buildOptions`, `settleFilters`, `nearestFix`, `buildReel`, dropdown labels |
+| `src/picker.ts` | Pure logic: `eligible`, `pickRandom`, `buildOptions`, `settleFilters`, `nearestFix`, dropdown labels |
 | `src/categories.ts` | Category → emoji and color, with a hashed color and ✨ for unknown categories |
-| `src/render.ts` | `render*()` functions returning HTML strings: shell, dropdown options, deck, reel, result card |
+| `src/render.ts` | `render*()` functions returning HTML strings: shell, dropdown options, deck, result card |
 | `src/reveal.ts` | The staged reveal timeline, `REVEAL_TIMINGS`, skip, the pool-of-one and reduced-motion paths |
 | `src/confetti.ts` | Canvas confetti burst (about 150 particles) |
-| `src/sound.ts` | Web Audio drumroll, tick and ta-da, plus the remembered mute toggle |
+| `src/sound.ts` | Web Audio drumroll, card snap and ta-da, plus the remembered mute toggle |
 | `src/shared.ts` | `esc()`, `plural()`, best-effort localStorage helpers, `byId()` |
 | `src/style.css` | All styling. Theme tokens are on `:root` |
 | `src/*.test.ts` | Vitest unit tests for `activities.ts` and `picker.ts` |
@@ -76,7 +76,9 @@ JSON keys.** Keep it frozen. The script trims and lowercases headers, so
 | 3 | 40 | Food | Cook a new cuisine together |
 | 1 | 0 | Outdoors | Sunset walk at the park |
 
-- `time`: whole hours, at least 0. `0` means "under an hour".
+- `time`: whole hours, at least 0. `0` means "less than an hour"; a time
+  under an hour like `0.5` counts as `0` too. Longer fractions like `1.5`
+  are rejected.
 - `budget`: whole dollars, at least 0. `0` means free. `$40` and `1,200` are
   accepted too.
 - `category`: free text. **The category dropdown is built from these
@@ -89,8 +91,10 @@ JSON keys.** Keep it frozen. The script trims and lowercases headers, so
 **Guardrails.** Add Sheets data validation (Data → Data validation), since the
 site's options come straight from the sheet:
 
-- `time` and `budget` columns: *Whole number ≥ 0*, reject input. Bad numbers
-  are then stopped in the sheet, where the editor can see them.
+- `budget` column: *Whole number ≥ 0*, reject input. Bad numbers are then
+  stopped in the sheet, where the editor can see them.
+- `time` column: *Custom formula is* `=AND(ISNUMBER(A2), A2>=0, OR(A2<1, A2=INT(A2)))`
+  (whole hours, or under an hour), reject input.
 - `category` column: a *Dropdown* listing the current categories. New
   categories can still be added to that list, but typos can't sneak in.
 
@@ -165,21 +169,23 @@ All three are native `<select>`s built from the data in memory
 
 | Dropdown | Options | Default |
 |---|---|---|
-| How much time? | Each distinct `time`, ascending: "Under an hour", "Up to 1 hour", "Up to n hours" | Last used, else the largest |
-| What's the budget? | Each distinct `budget`, ascending: "Free", "Up to $n" | Last used, else the largest |
+| How much time? | Each distinct `time`, ascending: "Less than an hour", "1 hour", "n hours" | Last used, else the busiest pair (below) |
+| What's the budget? | Each distinct `budget`, ascending: "Free", "$n" | Last used, else the busiest pair (below) |
 | Category (optional) | "Any category", then each category A→Z with an emoji and how many ideas fit the current time and budget ("🍝 Food · 4") | Last used, else "Any category" |
 
-Bounds are inclusive: a 3-hour, $40 idea fits "Up to 3 hours" and "Up to $40".
-Choices are remembered in localStorage (`date-night-inputs-v1`). Whenever the
-options change (boot, live data), `settleFilters` fits the last choice onto
-them: a time or budget that's gone moves to the largest option at or below
-it (or the smallest if there's none), and a category that's gone resets to
-"Any category". Until someone touches a dropdown, time and budget follow the
-largest values, so every idea fits.
+Time and budget match exactly: a 3-hour, $40 idea fits "3 hours" and "$40",
+not "4 hours" or "$50". Choices are remembered in localStorage
+(`date-night-inputs-v1`). Whenever the options change (boot, live data),
+`settleFilters` fits the last choice onto them: a time or budget that's gone
+moves to the largest option at or below it (or the smallest if there's none),
+and a category that's gone resets to "Any category". Until someone touches a
+dropdown, time and budget follow the busiest pair — the time and budget
+shared by the most ideas (shorter and cheaper on a tie) — so ideas always fit.
 
 When nothing fits, the button is disabled and `nearestFix` explains what to
-change in dropdown terms, e.g. *No Outdoors ideas fit — try Up to $40, Up to
-3 hours, or Any category*. Each suggestion works on its own.
+change in dropdown terms, e.g. *No Outdoors ideas fit — try $40, 3 hours, or
+Any category*. Each suggestion works on its own and is the option closest to
+the current one (the smaller on a tie).
 
 ## The reveal
 
@@ -191,24 +197,30 @@ only displays it, which keeps the logic testable and makes skipping safe.
 |---|-------|-----------|--------------|
 | 1 | Lock in | `lockIn` | The form shrinks away; the spotlight backdrop fades in |
 | 2 | Shuffle | `shuffle` | A five-card deck riffles; "Shuffling 12 ideas that fit…"; drumroll starts |
-| 3 | Spin | `spin` | A 30-slot reel of the eligible ideas spins, slows, and crawls onto the idea before the winner; a tick per item |
-| 4 | Near miss | `nearMissHold`, `nearMissStep` | "…is it?", then one click forward with an overshoot |
-| 5 | Hold | `hold` | Everything but the winner fades; two heartbeats; the drumroll swells and cuts |
-| 6 | Reveal | `flip`, `reveal` | The card flips face up; rays turn; confetti and the ta-da land |
-| 7 | Settle | — | **Spin again** (new pick, same choices) and **Change plans** (back to the form, also Esc) |
+| 3 | Deal | `deal`, `dealGap` | Three cards are dealt face down to the left, the right and the middle, each landing with a snap; the rest of the deck fades |
+| 4 | Hold | `clear`, `hold` | The two outside cards slide away face down; the middle card gets two heartbeats; the drumroll swells and cuts |
+| 5 | Reveal | `turn`, `flip`, `reveal` | The middle card turns over and grows into the winner; rays turn; confetti and the ta-da land |
+| 6 | Settle | — | **Deal again** (new pick, same choices) and **Change plans** (back to the form, also Esc) |
 
+- **No fake-outs:** the dealt cards are plain backs with nothing on them.
+  The outside cards are never turned over, and the winner isn't rendered
+  (not even hidden in the page) until the middle card turns. The only idea
+  anyone sees is the one that was picked. The card turns edge-on, and at
+  that moment it's swapped for the full-size result card, which turns the
+  rest of the way.
 - **Tuning:** every duration is in `REVEAL_TIMINGS` at the top of
-  `src/reveal.ts`. Tune by feel on a real phone. The full run is about 7 s.
+  `src/reveal.ts`. Tune by feel on a real phone. The full run is about 5.5 s.
 - **Skip:** a tap on the stage, **Space** or **Esc** cancels the running
-  stage and jumps to the settled result. Spin again can't start while a
+  stage and jumps to the settled result. Deal again can't start while a
   reveal is running.
-- **Pool of one:** the shuffle and reel are skipped. A face-down card pulses
-  under "Only one idea fits… but you still get a drumroll." and then flips.
-- **Reduced motion** (`prefers-reduced-motion`): stages 1–5 become a 1 s
+- **Pool of one:** the shuffle and deal are skipped. A single face-down card
+  pulses under "Only one idea fits… but you still get a drumroll." and then
+  turns over.
+- **Reduced motion** (`prefers-reduced-motion`): stages 1–4 become a 1 s
   "Choosing…" and the result fades in, with no rays or confetti. Sound still
   plays unless muted.
-- **No strobing:** nothing flashes full-screen. During the spin only the small
-  category chips are colored, and the rays turn once every 40 s.
+- **No strobing:** nothing flashes full-screen, and the rays turn once every
+  40 s.
 - **Accessibility:** the result is announced through an `aria-live` region
   ("Tonight's date: …") and focus moves to the result heading. The stage is a
   modal dialog, and the page behind it is `inert`.
