@@ -36,5 +36,4 @@ Thumbs.db
 *.sln
 
 # Local notes and Vercel CLI state
-localFiles/
 .vercel

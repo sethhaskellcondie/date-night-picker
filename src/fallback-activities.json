@@ -1,14 +1,206 @@
 [
-  { "time": "3", "budget": "40", "category": "Food", "idea": "Cook a new cuisine together" },
-  { "time": "1", "budget": "0", "category": "Outdoors", "idea": "Sunset walk at the park" },
-  { "time": "2", "budget": "25", "category": "Food", "idea": "Dessert crawl: three bakeries, one bite each" },
-  { "time": "0", "budget": "0", "category": "At Home", "idea": "Slow dance in the kitchen to our wedding playlist" },
-  { "time": "2", "budget": "0", "category": "At Home", "idea": "Build a blanket fort and watch a movie inside it" },
-  { "time": "4", "budget": "20", "category": "Outdoors", "idea": "Pack a picnic and hike to a view" },
-  { "time": "3", "budget": "60", "category": "Entertainment", "idea": "Dinner and a movie, old-school" },
-  { "time": "2", "budget": "30", "category": "Entertainment", "idea": "Bowling, loser buys the shakes" },
-  { "time": "1", "budget": "10", "category": "Creative", "idea": "Thrift-store challenge: $5 outfits for each other" },
-  { "time": "2", "budget": "15", "category": "Creative", "idea": "Paint each other's portraits, no peeking" },
-  { "time": "1", "budget": "0", "category": "At Home", "idea": "Stargaze from the backyard with hot cocoa" },
-  { "time": "5", "budget": "100", "category": "Adventure", "idea": "Day trip to a town neither of us has visited" }
+  {
+    "time": "1",
+    "budget": "0",
+    "category": "play",
+    "idea": "Sunderfolk"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "watch",
+    "idea": "Rules of Engagement"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "do",
+    "idea": "Short Walk"
+  },
+  {
+    "time": "1",
+    "budget": "0",
+    "category": "play",
+    "idea": "Echoes: The Microchip"
+  },
+  {
+    "time": "4",
+    "budget": "0",
+    "category": "play",
+    "idea": "Horrified"
+  },
+  {
+    "time": "4",
+    "budget": "0",
+    "category": "play",
+    "idea": "Learn a new game: Spirit Island"
+  },
+  {
+    "time": "1",
+    "budget": "0",
+    "category": "play",
+    "idea": "Lord of the Rings: Trick Taking Game"
+  },
+  {
+    "time": "4",
+    "budget": "0",
+    "category": "play",
+    "idea": "Learn a new game: Quest for El Dorado"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "play",
+    "idea": "Agent Avenue"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "play",
+    "idea": "Quinto"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "play",
+    "idea": "Railroad Ink"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "play",
+    "idea": "Kites/Skyrockets"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "play",
+    "idea": "Bubble Bobble (Switch)"
+  },
+  {
+    "time": "1",
+    "budget": "0",
+    "category": "play",
+    "idea": "Secret of Mana (Switch)"
+  },
+  {
+    "time": "4",
+    "budget": "0",
+    "category": "play",
+    "idea": "Mario Party (Switch)"
+  },
+  {
+    "time": "1",
+    "budget": "0",
+    "category": "play",
+    "idea": "Lovers in a Dangerous Spacetime (Switch)"
+  },
+  {
+    "time": "1",
+    "budget": "0",
+    "category": "play",
+    "idea": "Chip n Dale Rescue Rangers (Switch)"
+  },
+  {
+    "time": "1",
+    "budget": "0",
+    "category": "play",
+    "idea": "Goof Troop (Switch)"
+  },
+  {
+    "time": "1",
+    "budget": "0",
+    "category": "play",
+    "idea": "Heave Ho (Swtich)"
+  },
+  {
+    "time": "1",
+    "budget": "0",
+    "category": "play",
+    "idea": "Vitamin Connection (Switch)"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "play",
+    "idea": "Kirby's Dream Buffet (Switch)"
+  },
+  {
+    "time": "2",
+    "budget": "0",
+    "category": "watch",
+    "idea": "Mission Impossible"
+  },
+  {
+    "time": "2",
+    "budget": "0",
+    "category": "watch",
+    "idea": "Top Gun"
+  },
+  {
+    "time": "2",
+    "budget": "0",
+    "category": "watch",
+    "idea": "Avatar Aang"
+  },
+  {
+    "time": "2",
+    "budget": "0",
+    "category": "watch",
+    "idea": "What Women Want"
+  },
+  {
+    "time": "2",
+    "budget": "0",
+    "category": "watch",
+    "idea": "Honor Among Theives"
+  },
+  {
+    "time": "2",
+    "budget": "0",
+    "category": "watch",
+    "idea": "9 to 5"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "do",
+    "idea": "Puzzle session"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "do",
+    "idea": "Create family photo albums"
+  },
+  {
+    "time": "1",
+    "budget": "10",
+    "category": "do",
+    "idea": "Purchase a snack for the next movie"
+  },
+  {
+    "time": "1",
+    "budget": "10",
+    "category": "eat",
+    "idea": "Doller Menu Dinner"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "play",
+    "idea": "Orapa Mine"
+  },
+  {
+    "time": "1",
+    "budget": "10",
+    "category": "do",
+    "idea": "Purchase a puzzle that we can do together"
+  },
+  {
+    "time": "0.5",
+    "budget": "0",
+    "category": "play",
+    "idea": "Mario Kart World (Switch 2)"
+  }
 ]
